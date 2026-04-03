@@ -43,6 +43,7 @@ export default function ProposalEditorPage() {
   const [saveSuccess, setSaveSuccess] = useState(false);
   
   const previewRef = useRef<HTMLDivElement>(null);
+  const summaryRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -58,6 +59,32 @@ export default function ProposalEditorPage() {
     };
     load();
   }, [id, getProposal, navigate]);
+
+  const exportSummaryPDF = async () => {
+    if (!summaryRef.current || !proposal) return;
+    
+    setExporting(true);
+    try {
+      const canvas = await html2canvas(summaryRef.current, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+      });
+      
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`Summary-${proposal.title.replace(/\s+/g, '-')}.pdf`);
+    } catch (error) {
+      console.error("Summary Export Failed:", error);
+      alert("Failed to export summary PDF.");
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!proposal || !id) return;
@@ -238,7 +265,14 @@ export default function ProposalEditorPage() {
               disabled={exporting}
               className="w-full py-3 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-70"
             >
-              {exporting ? <Loader2 className="h-5 w-5 animate-spin" /> : <><Download className="h-5 w-5" /> Export as PDF</>}
+              {exporting ? <Loader2 className="h-5 w-5 animate-spin" /> : <><Download className="h-5 w-5" /> Export Full Proposal</>}
+            </button>
+            <button
+              onClick={() => exportSummaryPDF()}
+              disabled={exporting}
+              className="w-full py-3 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-xl font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-70"
+            >
+              {exporting ? <Loader2 className="h-5 w-5 animate-spin" /> : <><FileText className="h-5 w-5" /> One-Page Summary</>}
             </button>
             <button className="w-full py-3 bg-white text-slate-500 hover:text-indigo-600 transition-all flex items-center justify-center gap-2 text-sm font-medium">
               <Copy className="h-4 w-4" /> Copy Share Link
@@ -485,6 +519,88 @@ export default function ProposalEditorPage() {
                 <p className="text-xs font-bold text-slate-400 uppercase mb-1">Client Signature</p>
                 <p className="text-slate-300 italic">Signature & Date</p>
               </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Hidden Summary Template for PDF Export */}
+      <div className="fixed left-[-9999px] top-0">
+        <div 
+          ref={summaryRef}
+          className="w-[800px] p-12 bg-white text-slate-900 font-sans"
+        >
+          <div className="border-b-4 border-indigo-600 pb-6 mb-8">
+            <h1 className="text-4xl font-black uppercase tracking-tight text-indigo-600 mb-2">Project Proposal</h1>
+            <div className="grid grid-cols-2 gap-4 text-sm font-bold text-slate-500">
+              <p>Client Name: {proposal.clientName || 'Valued Client'}</p>
+              <p className="text-right">Date: {formatDate(new Date().toISOString())}</p>
+              <p>Project Title: {proposal.title}</p>
+            </div>
+          </div>
+
+          <div className="space-y-8">
+            <section>
+              <h2 className="text-xl font-black uppercase tracking-widest text-slate-400 mb-3 border-b border-slate-100 pb-1">Executive Summary</h2>
+              <p className="text-slate-700 leading-relaxed">{proposal.executiveSummary}</p>
+            </section>
+
+            <section>
+              <h2 className="text-xl font-black uppercase tracking-widest text-slate-400 mb-3 border-b border-slate-100 pb-1">Scope of Work</h2>
+              <ul className="space-y-2">
+                {proposal.scopeOfWork.slice(0, 6).map((phase, i) => (
+                  <li key={i} className="flex items-start gap-2 text-slate-700">
+                    <span className="text-indigo-600 font-bold">•</span>
+                    <span>{phase.phase}: {phase.deliverables.slice(0, 2).join(', ')}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+
+            <section>
+              <h2 className="text-xl font-black uppercase tracking-widest text-slate-400 mb-3 border-b border-slate-100 pb-1">Timeline</h2>
+              <ul className="space-y-2">
+                {proposal.timeline.slice(0, 4).map((m, i) => (
+                  <li key={i} className="flex justify-between text-slate-700">
+                    <span>{m.milestone}</span>
+                    <span className="font-bold text-indigo-600">{m.day}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+
+            <section>
+              <h2 className="text-xl font-black uppercase tracking-widest text-slate-400 mb-3 border-b border-slate-100 pb-1">Pricing (INR)</h2>
+              <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-slate-500 font-bold">Subtotal</span>
+                  <span className="font-bold">{formatCurrency(proposal.pricingBreakdown.subtotal)}</span>
+                </div>
+                <div className="flex justify-between items-center pt-2 border-t border-slate-200">
+                  <span className="text-lg font-black uppercase">Total Amount</span>
+                  <span className="text-2xl font-black text-indigo-600">{formatCurrency(proposal.pricingBreakdown.total)}</span>
+                </div>
+              </div>
+            </section>
+
+            <section>
+              <h2 className="text-xl font-black uppercase tracking-widest text-slate-400 mb-3 border-b border-slate-100 pb-1">Contract Terms</h2>
+              <ul className="space-y-2 text-sm text-slate-600 italic">
+                <li>• Payment: {proposal.paymentTerms.advance}% advance, {proposal.paymentTerms.delivery}% on completion.</li>
+                <li>• Delivery: As per the agreed timeline milestones.</li>
+                <li>• Revisions: {proposal.revisionPolicy}</li>
+                <li>• Support: 30 days post-launch technical support.</li>
+              </ul>
+            </section>
+          </div>
+
+          <div className="mt-12 pt-8 border-t border-slate-100 flex justify-between items-end">
+            <div className="text-xs text-slate-400">
+              <p>Generated by ProposalCraft AI</p>
+              <p>Professional Freelance Consultant Tool</p>
+            </div>
+            <div className="w-48 border-t border-slate-900 pt-2 text-center">
+              <p className="text-[10px] font-bold uppercase text-slate-400">Authorized Signature</p>
             </div>
           </div>
         </div>
