@@ -1,0 +1,66 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information for freelancers.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "email": { "type": "string", "format": "email" },
+        "name": { "type": "string" },
+        "profession": { "type": "string" },
+        "hourlyRate": { "type": "number" },
+        "city": { "type": "string" },
+        "gstNumber": { "type": "string" },
+        "phone": { "type": "string" },
+        "skills": { "type": "array", "items": { "type": "string" } },
+        "bio": { "type": "string" },
+        "totalProposals": { "type": "integer" },
+        "wonProposals": { "type": "integer" },
+        "totalRevenue": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "name", "profession", "hourlyRate"]
+    },
+    "Proposal": {
+      "title": "Proposal",
+      "description": "AI-generated proposal for a client project.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "UID of the freelancer who created it" },
+        "title": { "type": "string" },
+        "clientName": { "type": "string" },
+        "clientEmail": { "type": "string" },
+        "projectType": { "type": "string" },
+        "clientType": { "type": "string" },
+        "complexity": { "type": "string" },
+        "rawDescription": { "type": "string" },
+        "executiveSummary": { "type": "string" },
+        "scopeOfWork": { "type": "array" },
+        "exclusions": { "type": "array" },
+        "assumptions": { "type": "array" },
+        "timeline": { "type": "array" },
+        "pricingBreakdown": { "type": "object" },
+        "contractClauses": { "type": "array" },
+        "paymentTerms": { "type": "object" },
+        "revisionPolicy": { "type": "string" },
+        "validityPeriod": { "type": "string" },
+        "totalValueInr": { "type": "number" },
+        "status": { "type": "string", "enum": ["draft", "sent", "won", "lost"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile documents"
+    },
+    "/proposals/{proposalId}": {
+      "schema": "Proposal",
+      "description": "Proposal documents"
+    }
+  }
+}

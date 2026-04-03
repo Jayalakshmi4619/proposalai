@@ -1,0 +1,93 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: userId (Auth UID)
+    // Fields:
+    //   - uid: string (required)
+    //   - email: string (required)
+    //   - name: string (required)
+    //   - profession: string (required)
+    //   - hourlyRate: number (required)
+    //   - city: string
+    //   - gstNumber: string
+    //   - phone: string
+    //   - skills: list
+    //   - bio: string
+    //   - totalProposals: number
+    //   - wonProposals: number
+    //   - totalRevenue: number
+    //   - createdAt: timestamp
+    //
+    // Collection: proposals
+    // Document ID: proposalId
+    // Fields:
+    //   - userId: string (required)
+    //   - title: string (required)
+    //   - status: string (required, enum: draft, sent, won, lost)
+    //   - createdAt: timestamp
+    //   - updatedAt: timestamp
+    //   [Other AI-generated fields]
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "jayalakshmipragada735@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && (request.auth.uid == userId || isAdmin());
+    }
+
+    function isDocOwner() {
+      return isAuthenticated() && (request.auth.uid == resource.data.userId || isAdmin());
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'name', 'profession', 'hourlyRate']) &&
+             data.uid == request.auth.uid &&
+             data.email is string &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.profession is string &&
+             data.hourlyRate is number && data.hourlyRate >= 0;
+    }
+
+    function isValidProposal(data) {
+      return data.keys().hasAll(['userId', 'title', 'status', 'createdAt']) &&
+             data.userId == request.auth.uid &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
+             data.status in ['draft', 'sent', 'won', 'lost'];
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if isOwner(userId) && isValidUser(request.resource.data);
+    }
+
+    match /proposals/{proposalId} {
+      allow read: if isDocOwner();
+      allow create: if isAuthenticated() && isValidProposal(request.resource.data);
+      allow update: if isDocOwner() && isValidProposal(request.resource.data);
+      allow delete: if isDocOwner();
+    }
+  }
+}
