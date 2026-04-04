@@ -21,11 +21,12 @@ import {
   X,
   Briefcase
 } from 'lucide-react';
-import { formatCurrency, formatDate, cn } from '../lib/utils';
+import { formatCurrency, formatDate, cn, fixOklchColors } from '../lib/utils';
 import { Proposal, ScopePhase, Milestone, PricingItem, ContractClause } from '../types';
 import { motion } from 'motion/react';
-import jsPDF from 'jspdf';
+import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
+import { ProposalSummary } from '../components/ProposalSummary';
 
 export default function ProposalEditorPage() {
   const { id } = useParams();
@@ -41,6 +42,7 @@ export default function ProposalEditorPage() {
   const [activeSection, setActiveSection] = useState('summary');
   
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [copySuccess, setCopySuccess] = useState(false);
   
   const previewRef = useRef<HTMLDivElement>(null);
   const summaryRef = useRef<HTMLDivElement>(null);
@@ -60,27 +62,82 @@ export default function ProposalEditorPage() {
     load();
   }, [id, getProposal, navigate]);
 
+  const copyShareLink = () => {
+    const url = window.location.href;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2000);
+    });
+  };
+
   const exportSummaryPDF = async () => {
-    if (!summaryRef.current || !proposal) return;
+    if (!summaryRef.current || !proposal) {
+      console.error("Cannot export summary: Summary element or proposal data missing.", { summary: !!summaryRef.current, proposal: !!proposal });
+      alert("Cannot export summary: Document is still loading or summary is not ready.");
+      return;
+    }
     
     setExporting(true);
+    console.log("Starting Summary PDF Export...");
+    
     try {
+      // Small delay to ensure styles are applied
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
       const canvas = await html2canvas(summaryRef.current, {
         scale: 2,
         useCORS: true,
         backgroundColor: '#ffffff',
+        logging: true,
+        onclone: (clonedDoc) => {
+          const el = clonedDoc.getElementById('summary-preview');
+          if (el) {
+            el.style.position = 'static';
+            el.style.display = 'block';
+            el.style.visibility = 'visible';
+            el.style.opacity = '1';
+
+            // Pre-clean stylesheets to prevent html2canvas parser crash
+            const styles = clonedDoc.querySelectorAll('style');
+            styles.forEach(s => {
+              if (s.textContent?.includes('oklch') || s.textContent?.includes('oklab')) {
+                s.textContent = s.textContent.replace(/okl(ch|ab)\([^)]+\)/g, 'rgb(0,0,0)');
+              }
+            });
+
+            fixOklchColors(el);
+          }
+        }
       });
       
-      const imgData = canvas.toDataURL('image/png');
+      console.log("Summary canvas generated:", canvas.width, "x", canvas.height);
+      
+      const imgData = canvas.toDataURL('image/jpeg', 0.9);
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
       
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      let heightLeft = pdfHeight;
+      let position = 0;
+
+      // First page
+      pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, pdfHeight);
+      heightLeft -= pageHeight;
+
+      // Subsequent pages if summary exceeds one page
+      while (heightLeft > 0) {
+        position = heightLeft - pdfHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, pdfHeight);
+        heightLeft -= pageHeight;
+      }
+      
       pdf.save(`Summary-${proposal.title.replace(/\s+/g, '-')}.pdf`);
-    } catch (error) {
+      console.log("Summary PDF Export Complete");
+    } catch (error: any) {
       console.error("Summary Export Failed:", error);
-      alert("Failed to export summary PDF.");
+      alert(`Failed to export summary PDF: ${error.message || 'Unknown error'}. Please try again.`);
     } finally {
       setExporting(false);
     }
@@ -129,13 +186,19 @@ export default function ProposalEditorPage() {
   };
 
   const exportPDF = async () => {
-    if (!previewRef.current || !proposal) return;
+    if (!previewRef.current || !proposal) {
+      console.error("Cannot export PDF: Preview element or proposal data missing.", { preview: !!previewRef.current, proposal: !!proposal });
+      alert("Cannot export PDF: Document is still loading or preview is not ready.");
+      return;
+    }
     
     setExporting(true);
-    console.log("Starting PDF Export...");
+    console.log("Starting Full PDF Export for:", proposal.title);
+    
     try {
       // Ensure all images are loaded
       const images = previewRef.current.getElementsByTagName('img');
+      console.log(`Found ${images.length} images to load.`);
       await Promise.all(Array.from(images).map(img => {
         if (img.complete) return Promise.resolve();
         return new Promise(resolve => {
@@ -143,23 +206,55 @@ export default function ProposalEditorPage() {
           img.onerror = resolve;
         });
       }));
+      console.log("All images loaded.");
+
+      // Small delay to ensure styles are settled
+      await new Promise(resolve => setTimeout(resolve, 800));
+      console.log("Generating canvas...");
 
       const canvas = await html2canvas(previewRef.current, {
-        scale: 2,
+        scale: 1.5,
         useCORS: true,
-        logging: false,
+        logging: true,
         backgroundColor: '#ffffff',
-        windowWidth: 1200,
         onclone: (clonedDoc) => {
+          console.log("Cloning document for canvas generation...");
           const el = clonedDoc.getElementById('proposal-preview');
           if (el) {
             el.style.height = 'auto';
             el.style.overflow = 'visible';
+            el.style.padding = '40px';
+            el.style.width = '1000px'; // Fixed width for consistent PDF layout
+            
+            // Ensure all sections are visible in the clone
+            const sections = el.querySelectorAll('.scroll-mt-24');
+            sections.forEach((s: any) => {
+              s.style.opacity = '1';
+              s.style.visibility = 'visible';
+              s.style.transform = 'none';
+              s.style.transition = 'none';
+              s.style.display = 'block';
+            });
+
+            // Pre-clean stylesheets to prevent html2canvas parser crash
+            const styles = clonedDoc.querySelectorAll('style');
+            styles.forEach(s => {
+              if (s.textContent?.includes('oklch') || s.textContent?.includes('oklab')) {
+                s.textContent = s.textContent.replace(/okl(ch|ab)\([^)]+\)/g, 'rgb(0,0,0)');
+              }
+            });
+
+            // Fix oklch colors which html2canvas doesn't support
+            fixOklchColors(el);
+          } else {
+            console.warn("Proposal preview element not found in clone.");
           }
         }
       });
       
-      const imgData = canvas.toDataURL('image/png');
+      console.log("Canvas generated successfully:", canvas.width, "x", canvas.height);
+      
+      const imgData = canvas.toDataURL('image/jpeg', 0.8);
       const pdf = new jsPDF('p', 'mm', 'a4');
       
       const pdfWidth = pdf.internal.pageSize.getWidth();
@@ -171,23 +266,28 @@ export default function ProposalEditorPage() {
       let heightLeft = contentHeight;
       let position = 0;
 
+      console.log(`PDF Generation: ${contentHeight} total height, ${pdfHeight} page height.`);
+
       // First page
-      pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, contentHeight);
+      pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, contentHeight);
       heightLeft -= pdfHeight;
 
       // Subsequent pages
+      let pageCount = 1;
       while (heightLeft > 0) {
         position = heightLeft - contentHeight;
         pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, contentHeight);
+        pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, contentHeight);
         heightLeft -= pdfHeight;
+        pageCount++;
       }
+      console.log(`Generated ${pageCount} pages.`);
 
       pdf.save(`Proposal-${proposal.title.replace(/\s+/g, '-')}.pdf`);
       console.log("PDF Export Complete");
-    } catch (error) {
+    } catch (error: any) {
       console.error("PDF Export Failed:", error);
-      alert("Failed to export PDF. Please try again.");
+      alert(`Failed to export PDF: ${error.message || 'Unknown error'}. Please try again.`);
     } finally {
       setExporting(false);
     }
@@ -274,8 +374,14 @@ export default function ProposalEditorPage() {
             >
               {exporting ? <Loader2 className="h-5 w-5 animate-spin" /> : <><FileText className="h-5 w-5" /> One-Page Summary</>}
             </button>
-            <button className="w-full py-3 bg-white text-slate-500 hover:text-indigo-600 transition-all flex items-center justify-center gap-2 text-sm font-medium">
-              <Copy className="h-4 w-4" /> Copy Share Link
+            <button
+              onClick={copyShareLink}
+              className={cn(
+                "w-full py-3 bg-white border border-slate-200 rounded-xl font-bold transition-all flex items-center justify-center gap-2 text-sm",
+                copySuccess ? "text-emerald-600 border-emerald-200 bg-emerald-50" : "text-slate-500 hover:text-indigo-600 hover:bg-slate-50"
+              )}
+            >
+              {copySuccess ? <><CheckCircle className="h-4 w-4" /> Copied!</> : <><Copy className="h-4 w-4" /> Copy Share Link</>}
             </button>
           </div>
 
@@ -525,85 +631,14 @@ export default function ProposalEditorPage() {
       </div>
 
       {/* Hidden Summary Template for PDF Export */}
-      <div className="fixed left-[-9999px] top-0">
-        <div 
-          ref={summaryRef}
-          className="w-[800px] p-12 bg-white text-slate-900 font-sans"
-        >
-          <div className="border-b-4 border-indigo-600 pb-6 mb-8">
-            <h1 className="text-4xl font-black uppercase tracking-tight text-indigo-600 mb-2">Project Proposal</h1>
-            <div className="grid grid-cols-2 gap-4 text-sm font-bold text-slate-500">
-              <p>Client Name: {proposal.clientName || 'Valued Client'}</p>
-              <p className="text-right">Date: {formatDate(new Date().toISOString())}</p>
-              <p>Project Title: {proposal.title}</p>
-            </div>
-          </div>
-
-          <div className="space-y-8">
-            <section>
-              <h2 className="text-xl font-black uppercase tracking-widest text-slate-400 mb-3 border-b border-slate-100 pb-1">Executive Summary</h2>
-              <p className="text-slate-700 leading-relaxed">{proposal.executiveSummary}</p>
-            </section>
-
-            <section>
-              <h2 className="text-xl font-black uppercase tracking-widest text-slate-400 mb-3 border-b border-slate-100 pb-1">Scope of Work</h2>
-              <ul className="space-y-2">
-                {proposal.scopeOfWork.slice(0, 6).map((phase, i) => (
-                  <li key={i} className="flex items-start gap-2 text-slate-700">
-                    <span className="text-indigo-600 font-bold">•</span>
-                    <span>{phase.phase}: {phase.deliverables.slice(0, 2).join(', ')}</span>
-                  </li>
-                ))}
-              </ul>
-            </section>
-
-            <section>
-              <h2 className="text-xl font-black uppercase tracking-widest text-slate-400 mb-3 border-b border-slate-100 pb-1">Timeline</h2>
-              <ul className="space-y-2">
-                {proposal.timeline.slice(0, 4).map((m, i) => (
-                  <li key={i} className="flex justify-between text-slate-700">
-                    <span>{m.milestone}</span>
-                    <span className="font-bold text-indigo-600">{m.day}</span>
-                  </li>
-                ))}
-              </ul>
-            </section>
-
-            <section>
-              <h2 className="text-xl font-black uppercase tracking-widest text-slate-400 mb-3 border-b border-slate-100 pb-1">Pricing (INR)</h2>
-              <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-slate-500 font-bold">Subtotal</span>
-                  <span className="font-bold">{formatCurrency(proposal.pricingBreakdown.subtotal)}</span>
-                </div>
-                <div className="flex justify-between items-center pt-2 border-t border-slate-200">
-                  <span className="text-lg font-black uppercase">Total Amount</span>
-                  <span className="text-2xl font-black text-indigo-600">{formatCurrency(proposal.pricingBreakdown.total)}</span>
-                </div>
-              </div>
-            </section>
-
-            <section>
-              <h2 className="text-xl font-black uppercase tracking-widest text-slate-400 mb-3 border-b border-slate-100 pb-1">Contract Terms</h2>
-              <ul className="space-y-2 text-sm text-slate-600 italic">
-                <li>• Payment: {proposal.paymentTerms.advance}% advance, {proposal.paymentTerms.delivery}% on completion.</li>
-                <li>• Delivery: As per the agreed timeline milestones.</li>
-                <li>• Revisions: {proposal.revisionPolicy}</li>
-                <li>• Support: 30 days post-launch technical support.</li>
-              </ul>
-            </section>
-          </div>
-
-          <div className="mt-12 pt-8 border-t border-slate-100 flex justify-between items-end">
-            <div className="text-xs text-slate-400">
-              <p>Generated by ProposalCraft AI</p>
-              <p>Professional Freelance Consultant Tool</p>
-            </div>
-            <div className="w-48 border-t border-slate-900 pt-2 text-center">
-              <p className="text-[10px] font-bold uppercase text-slate-400">Authorized Signature</p>
-            </div>
-          </div>
-        </div>
+      <div className="fixed left-[-9999px] top-0 pointer-events-none">
+        {proposal && (
+          <ProposalSummary 
+            proposal={proposal} 
+            ref={summaryRef} 
+            id="summary-preview" 
+          />
+        )}
       </div>
     </div>
   );

@@ -1,10 +1,17 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
+import { initializeFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+
+// Force Firestore to use long-polling instead of WebSockets.
+// This is a common fix for "Network request failed" errors in environments
+// where WebSockets might be blocked by firewalls or ad-blockers.
+export const db = initializeFirestore(app, {
+  experimentalForceLongPolling: true,
+}, firebaseConfig.firestoreDatabaseId);
+
 export const auth = getAuth(app);
 
 // Connection test as per instructions
@@ -13,9 +20,9 @@ async function testConnection() {
     // Attempt to fetch a non-existent document to test connectivity
     await getDocFromServer(doc(db, '_internal_', 'connection_test'));
     console.log("Firebase connection test successful.");
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.error("Firebase connection failed: The client is offline. Please check your network or Firebase configuration.");
+  } catch (error: any) {
+    if (error?.message?.includes('the client is offline') || error?.code === 'unavailable') {
+      console.error("Firebase connection failed: The client is offline or the network request failed. This often happens if an ad-blocker or firewall is blocking Firebase (specifically identitytoolkit.googleapis.com or firestore.googleapis.com). Please disable ad-blockers and ensure your firewall allows these domains.");
     }
     // Other errors (like 404/not found) are expected and mean we ARE connected
   }

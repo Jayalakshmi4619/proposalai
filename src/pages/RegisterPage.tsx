@@ -54,7 +54,7 @@ export default function RegisterPage() {
       if (err.code === 'auth/operation-not-allowed') {
         setError('Email/Password authentication is not enabled in your Firebase Console. Please enable it at: https://console.firebase.google.com/project/gen-lang-client-0301577346/authentication/providers');
       } else if (err.code === 'auth/network-request-failed') {
-        setError('Network request failed. This often happens if an ad-blocker or firewall is blocking Firebase. Please disable ad-blockers and try again.');
+        setError('Network request failed. This usually means an ad-blocker or firewall is blocking Firebase (specifically identitytoolkit.googleapis.com). Please disable ad-blockers, check your internet connection, and try again.');
       } else if (err.code === 'auth/email-already-in-use') {
         setError('This email is already registered. Please sign in instead.');
       } else if (err.code === 'auth/weak-password') {
@@ -254,7 +254,12 @@ export default function RegisterPage() {
                     }
                     navigate('/dashboard');
                   } catch (err: any) {
-                    setError(err.message);
+                    console.error("Google Registration Error:", err);
+                    if (err.code === 'auth/network-request-failed') {
+                      setError('Network request failed. This usually means an ad-blocker or firewall is blocking Firebase (specifically identitytoolkit.googleapis.com). Please disable ad-blockers, check your internet connection, and try again.');
+                    } else {
+                      setError(err.message || 'Failed to sign up with Google. Please try again.');
+                    }
                   } finally {
                     setLoading(false);
                   }

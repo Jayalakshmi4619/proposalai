@@ -4,7 +4,6 @@ import {
   FileText, 
   PlusCircle, 
   User, 
-  Settings, 
   CheckCircle, 
   Send, 
   Clock,
@@ -65,16 +64,6 @@ export default function Sidebar() {
           );
         })}
       </nav>
-
-      <div className="p-4 border-t border-slate-800 flex-shrink-0">
-        <Link
-          to="/profile"
-          className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium hover:bg-slate-800 hover:text-white transition-all"
-        >
-          <Settings className="h-5 w-5 text-slate-500" />
-          Settings
-        </Link>
-      </div>
     </aside>
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { useProposalStore } from '../store/proposalStore';
@@ -18,9 +18,11 @@ import {
   Loader2,
   ArrowRight
 } from 'lucide-react';
-import { formatCurrency, formatDate, cn } from '../lib/utils';
+import { formatCurrency, formatDate, cn, fixOklchColors } from '../lib/utils';
 import { Proposal } from '../types';
-import jsPDF from 'jspdf';
+import { jsPDF } from 'jspdf';
+import html2canvas from 'html2canvas';
+import { ProposalSummary } from '../components/ProposalSummary';
 
 export default function DashboardPage() {
   const { user, profile } = useAuthStore();
@@ -28,6 +30,9 @@ export default function DashboardPage() {
   const [searchParams] = useSearchParams();
   const filter = searchParams.get('filter') || 'all';
   const [searchTerm, setSearchTerm] = useState('');
+  const [exporting, setExporting] = useState<string | null>(null);
+  const [selectedProposal, setSelectedProposal] = useState<Proposal | null>(null);
+  const summaryRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (user) {
@@ -66,43 +71,75 @@ export default function DashboardPage() {
     await updateProposal(id, { status });
   };
 
-  const handleDownloadPDF = (proposal: Proposal) => {
-    console.log("Downloading PDF for:", proposal.title);
-    const doc = new jsPDF();
+  const handleDownloadPDF = async (proposal: Proposal) => {
+    if (exporting) return;
     
-    // Header
-    doc.setFillColor(79, 70, 229); // Indigo-600
-    doc.rect(0, 0, 210, 40, 'F');
+    setExporting(proposal.id || 'temp');
+    setSelectedProposal(proposal);
     
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(24);
-    doc.text("Project Proposal", 20, 25);
+    // Small delay to ensure the hidden template is rendered with the correct data
+    await new Promise(resolve => setTimeout(resolve, 300));
     
-    doc.setFontSize(12);
-    doc.text(proposal.title, 20, 35);
-    
-    // Content
-    doc.setTextColor(30, 41, 59); // Slate-800
-    doc.setFontSize(16);
-    doc.text("Executive Summary", 20, 55);
-    
-    doc.setFontSize(10);
-    doc.setTextColor(71, 85, 105); // Slate-600
-    const summaryLines = doc.splitTextToSize(proposal.executiveSummary, 170);
-    doc.text(summaryLines, 20, 65);
-    
-    let y = 65 + (summaryLines.length * 5) + 15;
-    
-    doc.setTextColor(30, 41, 59);
-    doc.setFontSize(16);
-    doc.text("Pricing", 20, y);
-    
-    doc.setFontSize(10);
-    doc.setTextColor(71, 85, 105);
-    doc.text(`Total Project Value: ${formatCurrency(proposal.pricingBreakdown.total)}`, 20, y + 10);
-    doc.text(`Status: ${proposal.status.toUpperCase()}`, 20, y + 17);
-    
-    doc.save(`Proposal-${proposal.title.replace(/\s+/g, '-')}.pdf`);
+    try {
+      if (!summaryRef.current) {
+        throw new Error("Export template not found.");
+      }
+      
+      const canvas = await html2canvas(summaryRef.current, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+        onclone: (clonedDoc) => {
+          const el = clonedDoc.getElementById('dashboard-summary-preview');
+          if (el) {
+            el.style.position = 'static';
+            el.style.display = 'block';
+            el.style.visibility = 'visible';
+            el.style.opacity = '1';
+
+            // Pre-clean stylesheets to prevent html2canvas parser crash
+            const styles = clonedDoc.querySelectorAll('style');
+            styles.forEach(s => {
+              if (s.textContent?.includes('oklch') || s.textContent?.includes('oklab')) {
+                s.textContent = s.textContent.replace(/okl(ch|ab)\([^)]+\)/g, 'rgb(0,0,0)');
+              }
+            });
+
+            fixOklchColors(el);
+          }
+        }
+      });
+      
+      const imgData = canvas.toDataURL('image/jpeg', 0.9);
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      let heightLeft = pdfHeight;
+      let position = 0;
+
+      // First page
+      pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, pdfHeight);
+      heightLeft -= pageHeight;
+
+      // Subsequent pages if summary exceeds one page
+      while (heightLeft > 0) {
+        position = heightLeft - pdfHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, pdfHeight);
+        heightLeft -= pageHeight;
+      }
+      
+      pdf.save(`Summary-${proposal.title.replace(/\s+/g, '-')}.pdf`);
+    } catch (error: any) {
+      console.error("PDF Export Failed:", error);
+      alert(`Failed to export PDF: ${error.message || 'Unknown error'}. Please try again.`);
+    } finally {
+      setExporting(null);
+      setSelectedProposal(null);
+    }
   };
 
   return (
@@ -201,6 +238,7 @@ export default function DashboardPage() {
               onStatusChange={(status) => handleStatusChange(proposal.id!, status)}
               onDelete={() => deleteProposal(proposal.id!)}
               onDownload={() => handleDownloadPDF(proposal)}
+              exporting={exporting}
             />
           ))}
         </div>
@@ -223,6 +261,17 @@ export default function DashboardPage() {
           </Link>
         </div>
       )}
+
+      {/* Hidden Summary Template for PDF Export */}
+      <div className="fixed left-[-9999px] top-0 pointer-events-none">
+        {selectedProposal && (
+          <ProposalSummary 
+            proposal={selectedProposal} 
+            ref={summaryRef} 
+            id="dashboard-summary-preview" 
+          />
+        )}
+      </div>
     </div>
   );
 }
@@ -247,12 +296,13 @@ function StatCard({ icon: Icon, label, value, color, trend }: any) {
   );
 }
 
-function ProposalCard({ proposal, onDuplicate, onStatusChange, onDelete, onDownload }: { 
+function ProposalCard({ proposal, onDuplicate, onStatusChange, onDelete, onDownload, exporting }: { 
   proposal: Proposal, 
   onDuplicate: () => void,
   onStatusChange: (status: Proposal['status']) => void,
   onDelete: () => void,
-  onDownload: () => void
+  onDownload: () => void,
+  exporting: string | null
 }) {
   const [showMenu, setShowMenu] = useState(false);
 
@@ -324,10 +374,18 @@ function ProposalCard({ proposal, onDuplicate, onStatusChange, onDelete, onDownl
         </Link>
         <button 
           onClick={onDownload}
-          className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"
+          disabled={!!exporting}
+          className={cn(
+            "p-2 transition-colors",
+            exporting === proposal.id ? "text-indigo-600" : "text-slate-400 hover:text-indigo-600"
+          )}
           title="Download PDF"
         >
-          <Download className="h-5 w-5" />
+          {exporting === proposal.id ? (
+            <Loader2 className="h-5 w-5 animate-spin" />
+          ) : (
+            <Download className="h-5 w-5" />
+          )}
         </button>
       </div>
     </div>

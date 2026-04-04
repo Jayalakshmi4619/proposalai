@@ -20,3 +20,40 @@ export function formatDate(date: string | number | Date) {
     year: 'numeric',
   }).format(new Date(date));
 }
+
+export const fixOklchColors = (element: HTMLElement) => {
+  const allElements = [element, ...Array.from(element.querySelectorAll('*'))];
+  const temp = document.createElement('div');
+  temp.style.display = 'none';
+  document.body.appendChild(temp);
+
+  allElements.forEach((node: any) => {
+    const style = window.getComputedStyle(node);
+    const inlineStyles: Record<string, string> = {};
+    
+    // Iterate through all computed styles
+    for (let i = 0; i < style.length; i++) {
+      const prop = style[i];
+      const value = style.getPropertyValue(prop);
+      
+      if (value && (value.includes('oklch') || value.includes('oklab') || value.includes('var('))) {
+        try {
+          temp.style.setProperty(prop, value);
+          const resolved = window.getComputedStyle(temp).getPropertyValue(prop);
+          if (resolved && !resolved.includes('oklch') && !resolved.includes('oklab')) {
+            inlineStyles[prop] = resolved;
+          }
+        } catch (e) {
+          // Ignore errors for individual properties
+        }
+      }
+    }
+    
+    // Apply resolved styles as inline styles
+    Object.entries(inlineStyles).forEach(([prop, value]) => {
+      node.style.setProperty(prop, value);
+    });
+  });
+  
+  document.body.removeChild(temp);
+};

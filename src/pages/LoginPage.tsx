@@ -43,7 +43,7 @@ export default function LoginPage() {
       if (err.code === 'auth/operation-not-allowed') {
         setError('Google authentication is not enabled in your Firebase Console. Please enable it at: https://console.firebase.google.com/project/gen-lang-client-0301577346/authentication/providers');
       } else if (err.code === 'auth/network-request-failed') {
-        setError('Network request failed. This often happens if an ad-blocker or firewall is blocking Firebase. Please disable ad-blockers and try again.');
+        setError('Network request failed. This usually means an ad-blocker or firewall is blocking Firebase (specifically identitytoolkit.googleapis.com). Please disable ad-blockers, check your internet connection, and try again.');
       } else {
         setError(err.message);
       }
@@ -65,9 +65,9 @@ export default function LoginPage() {
       if (err.code === 'auth/operation-not-allowed') {
         setError('Email/Password authentication is not enabled in your Firebase Console. Please enable it at: https://console.firebase.google.com/project/gen-lang-client-0301577346/authentication/providers');
       } else if (err.code === 'auth/network-request-failed') {
-        setError('Network request failed. This often happens if an ad-blocker or firewall is blocking Firebase. Please disable ad-blockers and try again.');
+        setError('Network request failed. This usually means an ad-blocker or firewall is blocking Firebase (specifically identitytoolkit.googleapis.com). Please disable ad-blockers, check your internet connection, and try again.');
       } else if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
-        setError('Invalid email or password. Please try again.');
+        setError('Invalid email or password. If you signed up with Google, please use the "Sign in with Google" button below.');
       } else {
         setError(err.message || 'Failed to login. Please check your credentials.');
       }

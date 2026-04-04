@@ -2,7 +2,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { auth } from '../../firebase';
 import { signOut } from 'firebase/auth';
-import { LogOut, User, Bell, Search } from 'lucide-react';
+import { LogOut, User, Search } from 'lucide-react';
 
 export default function Navbar() {
   const { profile } = useAuthStore();
@@ -25,12 +25,6 @@ export default function Navbar() {
       </div>
 
       <div className="flex items-center gap-4 ml-4">
-        <button className="p-2 text-slate-500 hover:bg-slate-100 rounded-full transition-colors">
-          <Bell className="h-5 w-5" />
-        </button>
-        
-        <div className="h-8 w-px bg-slate-200 mx-2" />
-
         <div className="flex items-center gap-3">
           <div className="text-right hidden sm:block">
             <p className="text-sm font-medium text-slate-900">{profile?.name}</p>

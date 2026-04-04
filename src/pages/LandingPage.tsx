@@ -27,7 +27,6 @@ export default function LandingPage() {
           
           <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-600">
             <a href="#features" className="hover:text-indigo-600 transition-colors">Features</a>
-            <a href="#how-it-works" className="hover:text-indigo-600 transition-colors">How it Works</a>
             <Link to="/login" className="hover:text-indigo-600 transition-colors">Login</Link>
             <Link to="/register" className="px-5 py-2.5 bg-indigo-600 text-white rounded-full hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200">
               Get Started Free
@@ -59,9 +58,6 @@ export default function LandingPage() {
               <Link to="/register" className="px-8 py-4 bg-indigo-600 text-white rounded-xl font-bold text-lg hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-200 flex items-center justify-center gap-2">
                 Start Free <ArrowRight className="h-5 w-5" />
               </Link>
-              <a href="#demo" className="px-8 py-4 bg-white text-slate-700 border border-slate-200 rounded-xl font-bold text-lg hover:bg-slate-50 transition-all flex items-center justify-center gap-2">
-                See Demo
-              </a>
             </div>
             
             <div className="mt-12 flex items-center gap-6 text-sm text-slate-500">
@@ -188,7 +184,7 @@ export default function LandingPage() {
           </div>
         </div>
         <div className="max-w-7xl mx-auto mt-20 pt-8 border-t border-slate-800 text-center text-sm">
-          <p>© 2024 ProposalCraft AI. All rights reserved. Built with ❤️ in India.</p>
+          <p>© 2026 ProposalCraft AI. All rights reserved. Built with ❤️ in India.</p>
         </div>
       </footer>
     </div>
